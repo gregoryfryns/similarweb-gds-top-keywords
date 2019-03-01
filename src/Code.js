@@ -28,7 +28,7 @@ function getConfig() {
   config.newTextInput()
     .setId('domains')
     .setName('Domains')
-    .setHelpText('Enter the name of up to 7 domains you would like to analyze, separated by commas (e.g. cnn.com, bbc.com, nytimes.com)')
+    .setHelpText('Enter the name of up to 5 domains you would like to analyze, separated by commas (e.g. cnn.com, bbc.com, nytimes.com)')
     .setPlaceholder('cnn.com, bbc.com, nytimes.com')
     .setAllowOverride(true);
 
@@ -43,7 +43,7 @@ function getConfig() {
     .setId('limit')
     .setName('Limit')
     .setHelpText('Amount of keywords to be returned for each site (max. 9000)')
-    .setPlaceholder('7000')
+    .setPlaceholder('2000')
     .setAllowOverride(true);
 
   config.setDateRangeRequired(true);
@@ -103,7 +103,7 @@ function getSchema(request) {
 
 // eslint-disable-next-line no-unused-vars
 function getData(request) {
-  var MAX_NB_DOMAINS = 7;
+  var MAX_NB_DOMAINS = 5;
   var MAX_NB_KW = 9000;
 
   var startDate = request.dateRange.startDate;
