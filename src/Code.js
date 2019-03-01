@@ -28,7 +28,7 @@ function getConfig() {
   config.newTextInput()
     .setId('domains')
     .setName('Domains')
-    .setHelpText('Enter the name of up to 10 domains you would like to analyze, separated by commas (e.g. cnn.com, bbc.com, nytimes.com)')
+    .setHelpText('Enter the name of up to 7 domains you would like to analyze, separated by commas (e.g. cnn.com, bbc.com, nytimes.com)')
     .setPlaceholder('cnn.com, bbc.com, nytimes.com')
     .setAllowOverride(true);
 
@@ -38,6 +38,15 @@ function getConfig() {
     .setHelpText('ISO 2-letter country code of the country (e.g. us, gb - world for Worldwide)')
     .setPlaceholder('us')
     .setAllowOverride(true);
+
+  config.newTextInput()
+    .setId('limit')
+    .setName('Limit')
+    .setHelpText('Amount of keywords to be returned for each site (max. 9000)')
+    .setPlaceholder('7000')
+    .setAllowOverride(true);
+
+  config.setDateRangeRequired(true);
 
   return config.build();
 }
@@ -50,21 +59,21 @@ function getConnectorFields() {
   // var aggregations = cc.AggregationType;
 
   fields.newDimension()
-    .setId('date')
-    .setName('Date')
-    .setType(types.YEAR_MONTH_DAY);
-
-  fields.newDimension()
     .setId('domain')
     .setName('Domain')
     .setGroup('Dimensions')
     .setType(types.TEXT);
 
   fields.newDimension()
-    .setId('channel')
-    .setName('Channel')
+    .setId('search_term')
+    .setName('Search Term')
     .setGroup('Dimensions')
-    .setDescription('Traffic Source Channel')
+    .setType(types.TEXT);
+
+  fields.newDimension()
+    .setId('organic_paid')
+    .setName('Organic/Paid')
+    .setGroup('Dimensions')
     .setType(types.TEXT);
 
   fields.newMetric()
@@ -94,9 +103,14 @@ function getSchema(request) {
 
 // eslint-disable-next-line no-unused-vars
 function getData(request) {
-  var MAX_NB_DOMAINS = 10;
+  var MAX_NB_DOMAINS = 7;
+  var MAX_NB_KW = 9000;
+
+  var startDate = request.dateRange.startDate;
+  var endDate = request.dateRange.endDate;
   var country = request.configParams.country.trim().toLowerCase();
   var apiKey = request.configParams.apiKey.trim().toLowerCase();
+  var limit = Math.min(request.configParams.limit, MAX_NB_KW);
   var domains = request.configParams.domains.split(',').slice(0, MAX_NB_DOMAINS).map(function(domain) {
     return domain.trim().replace(/^(?:https?:\/\/)?(?:www\.)?/i, '').replace(/\/.*$/i, '').toLowerCase();
   });
@@ -107,34 +121,47 @@ function getData(request) {
   console.log('requested fields ids', JSON.stringify(requestedFieldIDs));
   var requestedFields = getConnectorFields().forIds(requestedFieldIDs);
 
-  var url = 'https://api.similarweb.com/v1/website/xxx/traffic-sources/overview-share';
-  // Prepare data to be fetched
+  var organicUrl = 'https://api.similarweb.com/v1/website/xxx/traffic-sources/organic-search';
+  var paidUrl = 'https://api.similarweb.com/v1/website/xxx/traffic-sources/paid-search';
 
-  var collectedData = {};
-  var params = generateApiParams(apiKey, country);
+  var tabularData = [];
+
+  var params = {
+    api_key: apiKey,
+    country: country,
+    start_date: startDate,
+    end_date: endDate,
+    limit: limit,
+    main_domain_only: 'false',
+    show_verified: 'false',
+    format: 'json'
+  };
 
   domains.forEach(function(domain) {
-    collectedData[domain] = {};
+    params['domain'] = domain;
 
-    // data[domain] = collectData(endpoints, domain, country, apiKey);
-    params.desktop['domain'] = domain;
-    var data = retrieveOrGet(url, params.desktop);
-    if (data && data.visits && data.visits[domain]) {
-      data.visits[domain].forEach(function(src) {
-        src.visits.forEach(function(monthlyValues) {
-          var date = monthlyValues.date;
-          if (!collectedData[domain].hasOwnProperty(date)) {
-            collectedData[domain][date] = {};
-          }
-          collectedData[domain][date][src.source_type] = { organic: monthlyValues.organic, paid: monthlyValues.paid };
-        });
+    var organicData = retrieveOrGet(organicUrl, params);
+    var paidData = retrieveOrGet(paidUrl, params);
+    var organicVisits = organicData && organicData.visits ? organicData.visits : 0;
+    var paidVisits = paidData && paidData.visits ? paidData.visits : 0;
+    var totVisits = organicVisits + paidVisits;
+
+    if (organicData && organicData.search) {
+      organicData.search.forEach(function(srch) {
+        tabularData.push({ values: buildRow(requestedFields, domain, srch.search_term, 'Organic', totVisits * srch.share) });
+      });
+    }
+
+    if (paidData && paidData.search) {
+      paidData.search.forEach(function(srch) {
+        tabularData.push({ values: buildRow(requestedFields, domain, srch.search_term, 'Paid', totVisits * srch.share) });
       });
     }
   });
 
   return {
     schema: requestedFields.build(),
-    rows: buildTabularData(requestedFields, collectedData)
+    rows: tabularData
   };
 }
 
@@ -156,74 +183,27 @@ function throwError (message, userSafe) {
   throw new Error(message);
 }
 
-function buildTabularData(requestedFields, data) {
-  var requestedData = [];
-
-  Object.keys(data).forEach(function(dom) {
-    var desktopData = data[dom];
-    Object.keys(desktopData).forEach(function(date) {
-      if (date == '2018-01-01') {
-        console.log('Build tabular data - Daily values for ' + date, desktopData[date]);
-      }
-
-      Object.keys(desktopData[date]).forEach(function(src) {
-        var srcTraffic = desktopData[date][src];
-        switch (src) {
-        case 'Search':
-          requestedData.push({ values: buildRow(requestedFields, date, dom, 'Organic Search', srcTraffic.organic) });
-          requestedData.push({ values: buildRow(requestedFields, date, dom, 'Paid Search', srcTraffic.paid) });
-          break;
-        case 'Social':
-          requestedData.push({ values: buildRow(requestedFields, date, dom, 'Social', srcTraffic.organic) });
-          break;
-        case 'Mail':
-          requestedData.push({ values: buildRow(requestedFields, date, dom, 'Email', srcTraffic.organic) });
-          break;
-        case 'Display Ads':
-          requestedData.push({ values: buildRow(requestedFields, date, dom, 'Display Ads', srcTraffic.paid) });
-          break;
-        case 'Direct':
-          requestedData.push({ values: buildRow(requestedFields, date, dom, 'Direct', srcTraffic.organic) });
-          break;
-        case 'Referrals':
-          requestedData.push({ values: buildRow(requestedFields, date, dom, 'Referrals', srcTraffic.organic) });
-          break;
-        }
-      });
-    });
-  });
-
-  console.log('Requested data (1st row)', requestedData[0]);
-  return requestedData;
-}
-
-function buildRow(requestedFields, date, dom, channel, value) {
-  if (date == '2018-01-01') {
-    console.log('Requested Fields for ' + date, requestedFields);
-  }
+function buildRow(requestedFields, dom, searchTerm, organicOrPaid, value) {
   var row = [];
   requestedFields.asArray().forEach(function (field) {
     switch (field.getId()) {
     case 'visits':
       row.push(value);
       break;
-    case 'date':
-      row.push(date.split('-').slice(0, 3).join(''));
-      break;
     case 'domain':
       row.push(dom);
       break;
-    case 'channel':
-      row.push(channel);
+    case 'search_term':
+      row.push(searchTerm);
+      break;
+    case 'organic_paid':
+      row.push(organicOrPaid);
       break;
     default:
       row.push('');
     }
   });
 
-  if (date == '2018-01-01') {
-    console.log('Returned row for ' + date, row);
-  }
   return row;
 }
 
@@ -282,49 +262,4 @@ function httpGet(url, params) {
   var data = JSON.parse(response);
 
   return data;
-}
-
-/**
- * Generate an object with 2 objects containing the API parameters to be used for the SW desktop
- * and mobile web API requests respectively
- *
- * @param {string} apiKey - SimilarWeb API Key
- * @param {string} country - 2-letter ISO country code of the desired country or 'world' for Worldwide
- * @param {?string} domain - desired domain
- * @return {object} - Object containing two objects: desktop & mobile with the API parameters to specific
- *   to desktop and mobile web requests respectively
- */
-function generateApiParams(apiKey, country, domain) {
-  var capData = retrieveOrGet('https://api.similarweb.com/capabilities', { api_key: apiKey });
-  var params = { desktop: null, mobile: null };
-
-  if (capData && capData.remaining_hits && capData.web_desktop_data && capData.web_mobile_data) {
-    var paramsCommon = {
-      api_key: apiKey,
-      country: country,
-      domain: domain,
-      granularity: 'monthly',
-      main_domain_only: 'false',
-      show_verified: 'false'
-    };
-    if (domain !== undefined) {
-      paramsCommon['domain'] = domain;
-    }
-
-    // If the selected country is available for that API key (desktop)
-    if (capData.web_desktop_data.countries.some(function(c) {return c.code.toLowerCase() == country;})) {
-      params.desktop = JSON.parse(JSON.stringify(paramsCommon)); // clone paramsCommon object
-      params.desktop['start_date'] = capData.web_desktop_data.snapshot_interval.start_date.split('-').slice(0, 2).join('-');
-      params.desktop['end_date'] = capData.web_desktop_data.snapshot_interval.end_date.split('-').slice(0, 2).join('-');
-    }
-
-    // If the selected country is available for that API key (mobile web)
-    if (capData.web_mobile_data.countries.some(function(c) {return c.code.toLowerCase() == country;})) {
-      params.mobile = JSON.parse(JSON.stringify(paramsCommon)); // clone paramsCommon object
-      params.mobile['start_date'] = capData.web_mobile_data.snapshot_interval.start_date.split('-').slice(0, 2).join('-');
-      params.mobile['end_date'] = capData.web_mobile_data.snapshot_interval.end_date.split('-').slice(0, 2).join('-');
-    }
-  }
-
-  return params;
 }
