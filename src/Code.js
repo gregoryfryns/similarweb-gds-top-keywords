@@ -56,7 +56,7 @@ function getConnectorFields() {
   var cc = DataStudioApp.createCommunityConnector();
   var fields = cc.getFields();
   var types = cc.FieldType;
-  // var aggregations = cc.AggregationType;
+  var aggregations = cc.AggregationType;
 
   fields.newDimension()
     .setId('domain')
@@ -80,14 +80,9 @@ function getConnectorFields() {
     .setId('visits')
     .setName('Visits')
     .setDescription('SimilarWeb estimated number of visits')
-    .setType(types.NUMBER);
-
-  // fields.newMetric()
-  //   .setId('bounce_rate')
-  //   .setName('Bounce rate')
-  //   .setDescription('Rate of visits for which no other interaction has been detected 30 minutes after the user first accessed the page')
-  //   .setType(types.PERCENT)
-  //   .setFormula('sum($bounced_visits)/sum($visits)');
+    .setType(types.NUMBER)
+    .setIsReaggregatable(true)
+    .setAggregation(aggregations.SUM);
 
   fields.setDefaultDimension('domain');
   fields.setDefaultMetric('visits');
