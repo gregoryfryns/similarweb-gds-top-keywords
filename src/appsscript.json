@@ -1,11 +1,11 @@
 {
     "dataStudio": {
       "name": "SimilarWeb Top Keywords (Desktop)",
-      "logoUrl": "http://www.comparatif-logiciels.fr/wp-content/uploads/2016/05/similarweb_comparatif_logiciels_saas-1.png",
+      "logoUrl": "https://www.similarweb.com/corp/wp-content/themes/similarcms_2_4/images/swlogo-og.jpg",
       "company": "Similarweb",
       "companyUrl": "https://www.similarweb.com/",
       "addonUrl": "https://www.similarweb.com/",
       "supportUrl": "https://www.similarweb.com/",
-      "description": "View the most popular keywords for up to 5 domains"
+      "description": "Retrieve the most popular keywords for up to 5 domains"
     }
   }
