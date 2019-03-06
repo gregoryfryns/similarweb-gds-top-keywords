@@ -21,12 +21,12 @@
   "license": "MIT",
   "homepage": "https://github.com/gregoryfryns/similarweb-gds-connector",
   "devDependencies": {
-    "@babel/core": "^7.3.3",
-    "@babel/preset-env": "^7.3.1",
+    "@babel/core": "^7.3.4",
+    "@babel/preset-env": "^7.3.4",
     "@google/clasp": "^2.0.1",
     "@types/google-apps-script": "0.0.37",
     "babel-jest": "^24.1.0",
-    "eslint": "^5.14.0",
+    "eslint": "^5.15.1",
     "eslint-plugin-jest": "^22.3.0",
     "jest": "^24.1.0"
   }
