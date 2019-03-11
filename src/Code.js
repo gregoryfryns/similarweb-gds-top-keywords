@@ -2,6 +2,7 @@
 
 if (typeof(require) !== 'undefined') {
   var retrieveOrGet = require('./utils.js')['retrieveOrGet'];
+  var dateToYearMonth = require('./utils.js')['dateToYearMonth'];
 }
 
 // eslint-disable-next-line no-unused-vars
@@ -101,8 +102,8 @@ function getData(request) {
   var MAX_NB_DOMAINS = 5;
   var MAX_NB_KW = 9000;
 
-  var startDate = request.dateRange.startDate.split('-').slice(0, 2).join('-');
-  var endDate = request.dateRange.endDate.split('-').slice(0, 2).join('-');
+  var startDate = dateToYearMonth(request.dateRange.startDate);
+  var endDate = dateToYearMonth(request.dateRange.endDate);
   var country = request.configParams.country.trim().toLowerCase();
   var apiKey = request.configParams.apiKey.trim().toLowerCase();
   var limit = Math.min(request.configParams.limit, MAX_NB_KW);
