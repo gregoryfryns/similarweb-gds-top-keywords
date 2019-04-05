@@ -1,7 +1,7 @@
-/* global DataStudioApp, Session, PropertiesService */
+/* global DataStudioApp, Session, PropertiesService, Utilities */
 
 if (typeof(require) !== 'undefined') {
-  var [retrieveOrGet, httpGet, dateToYearMonth] = require('./utils.js')['retrieveOrGet', 'httpGet', 'dateToYearMonth'];
+  var [httpGet, retrieveOrGet, retrieveOrGetAll, dateToYearMonth, buildUrl, cleanDomain] = require('./utils.js')['httpGet', 'retrieveOrGet', 'retrieveOrGetAll', 'dateToYearMonth', 'buildUrl', 'cleanDomain'];
 }
 
 // eslint-disable-next-line no-unused-vars
@@ -107,7 +107,7 @@ function getConfig() {
     .setId('limit')
     .setName('Limit')
     .setHelpText('Amount of keywords to be returned for each site (max. 9000)')
-    .setPlaceholder('2000')
+    .setPlaceholder('500')
     .setAllowOverride(true);
 
   config.setDateRangeRequired(true);
@@ -172,20 +172,43 @@ function getData(request) {
   var endDate = dateToYearMonth(request.dateRange.endDate);
   var country = request.configParams.country.trim().toLowerCase();
   var limit = Math.min(request.configParams.limit, MAX_NB_KW);
-  var domains = request.configParams.domains.split(',').slice(0, MAX_NB_DOMAINS).map(function(domain) {
-    return domain.trim().replace(/^(?:https?:\/\/)?(?:www\.)?/i, '').replace(/\/.*$/i, '').toLowerCase();
-  });
+  var domains = request.configParams.domains.split(',').slice(0, MAX_NB_DOMAINS).map(cleanDomain);
+
+  var capData = retrieveOrGet('https://api.similarweb.com/capabilities', { api_key: apiKey });
+
+  if (capData && capData.web_desktop_data) {
+    // Check if selected country is valid
+    if (!capData.web_desktop_data.countries.some(function(c) {return c.code.toLowerCase() == country;})) {
+      DataStudioApp.createCommunityConnector()
+        .newUserError()
+        .setDebugText('Invalid Country Code : ' + country + ' - API key: xxxxxxxx' + apiKey.slice(-6))
+        .setText('The selected country filter (' + country + ') is not available, please use another one or contact your SimilarWeb account manager for an upgrade.')
+        .throwException();
+    }
+
+    // Check if selected time period is valid
+    var interval = capData.web_desktop_data.snapshot_interval;
+    if (startDate < dateToYearMonth(interval.start_date) || endDate > dateToYearMonth(interval.end_date)) {
+      DataStudioApp.createCommunityConnector()
+        .newUserError()
+        .setDebugText('Invalid dates: [' + startDate + ' - ' + endDate + '] not in [' + interval.start_date + ' - ' + interval.end_date + ']')
+        .setText([
+          'Invalid time period, please select dates between ',
+          Utilities.formatDate(new Date(interval.start_date), 'GMT', 'dd MMM yyyy'),
+          ' and ',
+          Utilities.formatDate(new Date(interval.end_date), 'GMT', 'dd MMM yyyy'),
+          '.'
+        ].join(''))
+        .throwException();
+    }
+  }
 
   var requestedFieldIDs = request.fields.map(function(field) {
     return field.name;
   });
-  console.log('requested fields ids', JSON.stringify(requestedFieldIDs));
+
+  console.info('requested fields ids', JSON.stringify(requestedFieldIDs));
   var requestedFields = getConnectorFields().forIds(requestedFieldIDs);
-
-  var organicUrl = 'https://api.similarweb.com/v1/website/xxx/traffic-sources/organic-search';
-  var paidUrl = 'https://api.similarweb.com/v1/website/xxx/traffic-sources/paid-search';
-
-  var tabularData = [];
 
   var params = {
     api_key: apiKey,
@@ -198,24 +221,31 @@ function getData(request) {
     format: 'json'
   };
 
+  var apiRequests = [];
   domains.forEach(function(domain) {
     params['domain'] = domain;
+    apiRequests.push({ url: buildUrl('https://api.similarweb.com/v1/website/xxx/traffic-sources/organic-search', params), type: 'Organic', domain: domain });
+    apiRequests.push({ url: buildUrl('https://api.similarweb.com/v1/website/xxx/traffic-sources/paid-search', params), type: 'Paid', domain: domain });
+  });
 
-    var organicData = retrieveOrGet(organicUrl, params);
-    var paidData = retrieveOrGet(paidUrl, params);
-    var organicVisits = organicData && organicData.visits ? organicData.visits : 0;
-    var paidVisits = paidData && paidData.visits ? paidData.visits : 0;
-    var totVisits = organicVisits + paidVisits;
+  var replies = retrieveOrGetAll(apiRequests.map(function(req) { return req.url; }));
 
-    if (organicData && organicData.search) {
-      organicData.search.forEach(function(srch) {
-        tabularData.push({ values: buildRow(requestedFields, domain, srch.search_term, 'Organic', totVisits * srch.share) });
-      });
+  // 1st run to collect total number of visits by domain
+  var visits = {};
+  replies.forEach(function(data, i) {
+    var req = apiRequests[i];
+    if (data && data.visits) {
+      visits[req.domain] = visits[req.domain] + data.visits || data.visits;
     }
+  });
 
-    if (paidData && paidData.search) {
-      paidData.search.forEach(function(srch) {
-        tabularData.push({ values: buildRow(requestedFields, domain, srch.search_term, 'Paid', totVisits * srch.share) });
+  // 2nd run to get the visits by keyword
+  var tabularData = [];
+  replies.forEach(function(data, i) {
+    var req = apiRequests[i];
+    if (data && data.search) {
+      data.search.forEach(function (srch) {
+        tabularData.push({ values: buildRow(requestedFields, req.domain, srch.search_term, req.type, visits[req.domain] * srch.share) });
       });
     }
   });
@@ -224,14 +254,6 @@ function getData(request) {
     schema: requestedFields.build(),
     rows: tabularData
   };
-}
-
-// eslint-disable-next-line no-unused-vars
-function throwError (message, userSafe) {
-  if (userSafe) {
-    message = 'DS_USER:' + message;
-  }
-  throw new Error(message);
 }
 
 function buildRow(requestedFields, dom, searchTerm, organicOrPaid, value) {
