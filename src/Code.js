@@ -97,15 +97,15 @@ function getConfig() {
   config.newTextInput()
     .setId('domains')
     .setName('Domains')
-    .setHelpText('Enter the name of up to 5 domains you would like to analyze, separated by commas (e.g. cnn.com, bbc.com, nytimes.com)')
-    .setPlaceholder('cnn.com, bbc.com, nytimes.com')
+    .setHelpText('Enter the name of up to 10 domains you would like to analyze, separated by commas (e.g. cnn.com, foxnews.com, washingtonpost.com, nytimes.com)')
+    .setPlaceholder('e.g.: cnn.com, foxnews.com, washingtonpost.com, nytimes.com')
     .setAllowOverride(true);
 
   config.newTextInput()
     .setId('country')
     .setName('Country Code')
     .setHelpText('ISO 2-letter country code of the country (e.g. us, gb - world for Worldwide)')
-    .setPlaceholder('us')
+    .setPlaceholder('e.g.: us')
     .setAllowOverride(true);
 
   config.newTextInput()
@@ -167,7 +167,7 @@ function getSchema(request) {
 
 // eslint-disable-next-line no-unused-vars
 function getData(request) {
-  var MAX_NB_DOMAINS = 5;
+  var MAX_NB_DOMAINS = 10;
   var MAX_NB_KW = 9000;
 
   var userProperties = PropertiesService.getUserProperties();

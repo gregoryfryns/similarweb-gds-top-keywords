@@ -1,11 +1,20 @@
 {
-    "dataStudio": {
-      "name": "SimilarWeb Top Keywords (Desktop)",
-      "logoUrl": "https://www.similarweb.com/corp/wp-content/themes/similarcms_2_4/images/swlogo-og.jpg",
-      "company": "Similarweb",
-      "companyUrl": "https://www.similarweb.com/",
-      "addonUrl": "https://www.similarweb.com/",
-      "supportUrl": "https://www.similarweb.com/",
-      "description": "Retrieve the most popular keywords for up to 5 domains"
-    }
-  }
+  "dataStudio": {
+    "name": "SimilarWeb Top Keywords",
+    "company": "SimilarWeb",
+    "companyUrl": "https://www.similarweb.com/",
+    "logoUrl": "https://adverity-gds-static.s3.amazonaws.com/icons/similarweb.png",
+    "supportUrl": "https://support.similarweb.com/hc/en-us/requests/new?ticket_form_id=138285",
+    "addonUrl": "https://github.com/gregoryfryns/similarweb-gds-marketing-channels",
+    "privacyPolicyUrl": "https://www.similarweb.com/corp/legal/privacy-policy/",
+    "termsOfServiceUrl": "https://www.similarweb.com/corp/legal/termsandconditions/",
+    "description": "SimilarWeb lets you measure the Digital World. View the top Paid and Organic Search visits for up to 10 domains. You will need a SimilarWeb API key to use this connector; please visit https://www.similarweb.com if you don't have a SimilarWeb PRO account.",
+    "shortDescription": "SimilarWeb Top Paid/Organic Search Visits",
+    "authType": ["KEY"],
+    "feeType": ["PAID"],
+    "sources": ["SIMILARWEB"]
+  },
+  "urlFetchWhitelist": [
+    "https://api.similarweb.com/"
+  ]
+}
