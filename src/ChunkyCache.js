@@ -25,9 +25,10 @@ function ChunkyCache(cacheService, chunkSize) {
  * @param {any} value - Data to be stored. The data is stored as a JSON object in the cache service
  */
 ChunkyCache.prototype.put = function (key, value, timeout) {
-  if (typeof(timeout) == 'undefined') { timeout = ChunkyCache.DEFAULT_TIMEOUT;}
+  if (typeof(timeout) == 'undefined') { timeout = ChunkyCache.DEFAULT_TIMEOUT; }
   var json = JSON.stringify(value);
-  var cSize = Math.floor(this.chunkSize / 2);
+  // var cSize = Math.floor(this.chunkSize / 2);
+  var cSize = this.chunkSize;
   var chunks = [];
   var index = 0;
   while (index < json.length) {
@@ -42,8 +43,14 @@ ChunkyCache.prototype.put = function (key, value, timeout) {
     chunks: chunks,
     length: json.length
   };
-  this.service.put(key, JSON.stringify(superBlk), timeout);
-  console.log('ChunkyCache: successfully stored data for key: ', key);
+
+  try {
+    this.service.put(key, JSON.stringify(superBlk), timeout);
+    console.info('ChunkyCache: successfully stored data for key: ', key, ' (', chunks.length, 'chunks)');
+  }
+  catch (e) {
+    console.error('Error when storing in cache', key, e);
+  }
 };
 
 /**

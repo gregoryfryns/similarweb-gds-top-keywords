@@ -106,7 +106,7 @@ function httpGet(url, params, retries) {
 
 /* istanbul ignore next */
 function retrieveOrGetAll(urls) {
-  console.info('Bulk fetch for urls: ' + JSON.stringify(urls));
+  console.info('Bulk fetch for urls:', JSON.stringify(urls));
   var HTTP_GET_RETRIES = 3;
   var cache = new ChunkyCache(CacheService.getUserCache());
   var resultsDict = {};
@@ -117,20 +117,17 @@ function retrieveOrGetAll(urls) {
     var data = null;
     try {
       data = cache.get(cacheKey);
-      console.log('retrieveOrGetAll: Fetched succesfully from cache', cacheKey);
     }
     catch (e) {
-      console.log('retrieveOrGetAll: Error when fetching from cache:', cacheKey, e);
-      toApi.push(url);
+      console.info('retrieveOrGetAll: no data in cache for ', cacheKey, ', calling API');
     }
 
-    if (!data) {
-      console.info('No data cached for ', cacheKey, ', calling API');
-      toApi.push(url);
+    if (data) {
+      resultsDict[url] = data;
+      console.info('retrieveOrGetAll: retrieved data from cache for ', cacheKey, ':', JSON.stringify(data));
     }
     else {
-      resultsDict[url] = data;
-      console.log('Cached data for ', cacheKey, ':', JSON.stringify(data));
+      toApi.push(url);
     }
   });
 
@@ -138,12 +135,9 @@ function retrieveOrGetAll(urls) {
   apiResponses.forEach(function(response, i) {
     if (response && response.meta) {
       var cacheKey = cache.buildCacheKey(toApi[i]);
-      try {
-        cache.put(cacheKey, response);
-      }
-      catch (e) {
-        console.error('Error when storing in cache', cacheKey, e);
-      }
+      console.log('Got a reply from the API, put result in cache: ', cacheKey);
+      cache.put(cacheKey, response);
+
       resultsDict[toApi[i]] = response;
     }
   });
@@ -164,6 +158,8 @@ function retrieveOrGetAll(urls) {
 /* istanbul ignore next */
 function httpGetAll(urls, retries) {
   if (typeof(retries) == 'undefined') { retries = 3; }
+  console.log('httpGetAll for urls:', JSON.stringify(urls), ' - ', retries, ' attempts left');
+
   var resultsDict = {};
   var retry = [];
 
@@ -177,15 +173,18 @@ function httpGetAll(urls, retries) {
 
   catch (e) {
     // show error message in logs, an exception will be thrown after we parse all the results
-    console.warn('Error while calling the API: ' + e);
+    console.warn('Error while calling the API:', e);
   }
 
   if (responses) {
     responses.forEach(function(response, i) {
       try {
         var data = JSON.parse(response);
-        if (data && data.meta && data.meta.status == 'Success') {
+        if (data && data.meta && data.meta.status) {
           resultsDict[urls[i]] = data;
+          if (data.meta.status == 'Error') {
+            console.warn('Error returned for URL ', urls[i], ' - Error code: ', data.meta.error_code, ' - Error message: ', data.meta.error_message);
+          }
         }
         else {
           if (data && data.meta && data.meta.error) {
@@ -197,7 +196,7 @@ function httpGetAll(urls, retries) {
       catch (e) {
         if (retries > 0) {
           // show error message in logs, an exception will be thrown after we parse all the results
-          console.warn('Invalid response for ' + urls[i] + ', (' + retries + ' attempts left) - ' + data + ' - exception message: ' + e);
+          console.warn('Invalid response for:', urls[i], ' -', retries, ' attempts left) -', response.getContentText(), ' - exception message:', e);
         }
         retry.push(urls[i]);
       }
@@ -209,10 +208,10 @@ function httpGetAll(urls, retries) {
 
   if (retry.length > 0) {
     if (retries > 0) {
-      console.warn('HTTP Get failed ' + retry.length + ' urls, ', retries, ' attempts left');
+      console.warn('httpGetAll failed for ', retry.length, ' urls, ', retries, ' attempts left');
       Utilities.sleep(600); // wait before trying again
-      httpGetAll(retry, retries - 1).forEach(function(x, j) {
-        resultsDict[retry[j]] = x;
+      httpGetAll(retry, retries - 1).forEach(function(reply, j) {
+        resultsDict[retry[j]] = reply;
       });
     }
     else {

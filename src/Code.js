@@ -1,7 +1,7 @@
-/* global DataStudioApp, Session, PropertiesService, Utilities */
+/* global DataStudioApp, Session, PropertiesService, UrlFetchApp, Utilities */
 
 if (typeof(require) !== 'undefined') {
-  var [httpGet, retrieveOrGet, retrieveOrGetAll, dateToYearMonth, buildUrl, cleanDomain] = require('./utils.js')['httpGet', 'retrieveOrGet', 'retrieveOrGetAll', 'dateToYearMonth', 'buildUrl', 'cleanDomain'];
+  var [retrieveOrGet, retrieveOrGetAll, dateToYearMonth, buildUrl, cleanDomain] = require('./utils.js')['retrieveOrGet', 'retrieveOrGetAll', 'dateToYearMonth', 'buildUrl', 'cleanDomain'];
 }
 
 // eslint-disable-next-line no-unused-vars
@@ -24,8 +24,12 @@ function isAuthValid() {
   var userProperties = PropertiesService.getUserProperties();
   var key = userProperties.getProperty('dscc.similarwebapi.key');
 
-  var data = httpGet('https://api.similarweb.com/capabilities', { api_key: key });
+  var data = null;
 
+  if (key) {
+    var response = UrlFetchApp.fetch('https://api.similarweb.com/capabilities?api_key=' + key, { muteHttpExceptions: true });
+    data = JSON.parse(response);
+  }
   return (data && data.hasOwnProperty('remaining_hits'));
 }
 
@@ -52,7 +56,8 @@ function checkForValidKey(key) {
   }
 
   // Check if key is valid
-  var data = httpGet('https://api.similarweb.com/capabilities', { api_key: key });
+  var response = UrlFetchApp.fetch('https://api.similarweb.com/capabilities?api_key=' + key, { muteHttpExceptions: true });
+  var data = JSON.parse(response);
 
   return (data && data.hasOwnProperty('remaining_hits'));
 }
@@ -171,8 +176,11 @@ function getData(request) {
   var startDate = dateToYearMonth(request.dateRange.startDate);
   var endDate = dateToYearMonth(request.dateRange.endDate);
   var country = request.configParams.country.trim().toLowerCase();
-  var limit = Math.min(request.configParams.limit, MAX_NB_KW);
+  var limit = request.configParams.limit;
+  if (limit <= 0) { limit = 500; }
+  if (limit > MAX_NB_KW) { limit = MAX_NB_KW; }
   var domains = request.configParams.domains.split(',').slice(0, MAX_NB_DOMAINS).map(cleanDomain);
+  console.log('getData, request = ', JSON.stringify(request));
 
   var capData = retrieveOrGet('https://api.similarweb.com/capabilities', { api_key: apiKey });
 
@@ -221,31 +229,31 @@ function getData(request) {
     format: 'json'
   };
 
-  var apiRequests = [];
+  var tabularData = [];
+  // var apiRequests = [];
   domains.forEach(function(domain) {
     params['domain'] = domain;
-    apiRequests.push({ url: buildUrl('https://api.similarweb.com/v1/website/xxx/traffic-sources/organic-search', params), type: 'Organic', domain: domain });
-    apiRequests.push({ url: buildUrl('https://api.similarweb.com/v1/website/xxx/traffic-sources/paid-search', params), type: 'Paid', domain: domain });
-  });
+    var urlOrganic = buildUrl('https://api.similarweb.com/v1/website/xxx/traffic-sources/organic-search', params);
+    var urlPaid = buildUrl('https://api.similarweb.com/v1/website/xxx/traffic-sources/paid-search', params);
+    var apiRequests = [urlOrganic, urlPaid];
 
-  var replies = retrieveOrGetAll(apiRequests.map(function(req) { return req.url; }));
+    var replies = retrieveOrGetAll(apiRequests);
+    var dataOrganic = replies[0];
+    var dataPaid = replies[1];
 
-  // 1st run to collect total number of visits by domain
-  var visits = {};
-  replies.forEach(function(data, i) {
-    var req = apiRequests[i];
-    if (data && data.visits) {
-      visits[req.domain] = visits[req.domain] + data.visits || data.visits;
+    var visitsOrganic = dataOrganic && dataOrganic.visits ? dataOrganic.visits : 0;
+    var visitsPaid = dataPaid && dataPaid.visits ? dataPaid.visits : 0;
+    var totVisits = visitsOrganic + visitsPaid;
+
+    if (dataOrganic && dataOrganic.search) {
+      dataOrganic.search.forEach(function(srch) {
+        tabularData.push({ values: buildRow(requestedFields, domain, srch.search_term, 'Organic', totVisits * srch.share) });
+      });
     }
-  });
 
-  // 2nd run to get the visits by keyword
-  var tabularData = [];
-  replies.forEach(function(data, i) {
-    var req = apiRequests[i];
-    if (data && data.search) {
-      data.search.forEach(function (srch) {
-        tabularData.push({ values: buildRow(requestedFields, req.domain, srch.search_term, req.type, visits[req.domain] * srch.share) });
+    if (dataPaid && dataPaid.search) {
+      dataPaid.search.forEach(function(srch) {
+        tabularData.push({ values: buildRow(requestedFields, domain, srch.search_term, 'Paid', totVisits * srch.share) });
       });
     }
   });
