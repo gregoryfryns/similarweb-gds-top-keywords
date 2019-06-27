@@ -1,6 +1,6 @@
 {
   "name": "similarweb-gds-top-keywords",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "SimilarWeb connector for Google Data Studio - Top Keywords",
   "main": "Code.js",
   "scripts": {
