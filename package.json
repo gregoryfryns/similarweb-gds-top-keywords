@@ -24,15 +24,16 @@
   "license": "MIT",
   "homepage": "https://www.similarweb.com",
   "devDependencies": {
-    "@babel/core": "^7.3.4",
-    "@babel/preset-env": "^7.3.4",
-    "@google/clasp": "^2.0.1",
-    "@types/google-apps-script": "0.0.37",
-    "babel-jest": "^24.1.0",
-    "eslint": "^5.15.1",
-    "eslint-plugin-jest": "^22.3.0",
-    "jest": "^24.1.0",
-    "rimraf": "^2.6.3"
+    "@google/clasp": "^2.1.0",
+    "@types/google-apps-script": "0.0.53",
+    "@typescript-eslint/eslint-plugin": "^1.10.2",
+    "@typescript-eslint/parser": "^1.10.2",
+    "eslint": "^5.16.0",
+    "eslint-plugin-googleappsscript": "^1.0.2",
+    "eslint-plugin-jest": "^22.6.4",
+    "jest": "^24.8.0",
+    "rimraf": "^2.6.3",
+    "typescript": "^3.5.1"
   },
   "dependencies": {},
   "repository": {
