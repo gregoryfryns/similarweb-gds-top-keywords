@@ -178,26 +178,34 @@ function httpGetAll(urls, retries) {
 
   if (responses) {
     responses.forEach(function(response, i) {
+      var data;
       try {
-        var data = JSON.parse(response);
-        if (data && data.meta && data.meta.status) {
-          resultsDict[urls[i]] = data;
-          if (data.meta.status == 'Error') {
-            console.warn('Error returned for URL ', urls[i], ' - Error code: ', data.meta.error_code, ' - Error message: ', data.meta.error_message);
+        data = JSON.parse(response);
+      }
+      catch (e) {
+        console.warn('Invalid response for:', urls[i].replace(/api_key=[0-9a-f]{26}/gi, 'api_key=xxxxxxxxxxx'), ' -', retries, ' attempts left) -', response.getContentText(), ' - exception message:', e);
+      }
+
+      if (data) {
+        if (data && data.meta && data.meta.status == 'Error') {
+          console.warn('Error returned for URL ', urls[i].replace(/api_key=[0-9a-f]{26}/gi, 'api_key=xxxxxxxxxxx'), ' - Error code: ', data.meta.error_code, ' - Error message: ', data.meta.error_message);
+          if (data.meta.error == '429') {
+            // too many requests, let's retry later
+            retry.push(urls[i]);
+          }
+          // else if { }... check all possible error codes
+          else {
+            // nothing we can do, store error message in cache
+            resultsDict[urls[i]] = data;
           }
         }
         else {
-          if (data && data.meta && data.meta.error) {
-            console.warn('Error for url ' + urls[i].url + ': ' + data.meta.error);
-          }
-          retry.push(urls[i]);
+          // no error, store data in cache
+          resultsDict[urls[i]] = data;
         }
       }
-      catch (e) {
-        if (retries > 0) {
-          // show error message in logs, an exception will be thrown after we parse all the results
-          console.warn('Invalid response for:', urls[i], ' -', retries, ' attempts left) -', response.getContentText(), ' - exception message:', e);
-        }
+      else {
+        // no data, retry later
         retry.push(urls[i]);
       }
     });
