@@ -139,6 +139,13 @@ function getConnectorFields(): GoogleAppsScript.Data_Studio.Fields {
     .setType(types.TEXT);
 
   fields.newDimension()
+    .setId('device')
+    .setName('Device')
+    .setGroup('Dimensions')
+    .setDescription('Device type: Desktop or Mobile Web')
+    .setType(types.TEXT);
+
+  fields.newDimension()
     .setId('organic_paid')
     .setName('Organic/Paid')
     .setGroup('Dimensions')
@@ -165,7 +172,7 @@ function getSchema(request): object {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/camelcase
-function buildRow(requestedFields: GoogleAppsScript.Data_Studio.Fields, dom: string, searchTerm: string, organicOrPaid: string, value: number): any[] {
+function buildRow(requestedFields: GoogleAppsScript.Data_Studio.Fields, dom: string, searchTerm: string, device: string, organicOrPaid: string, value: number): any[] {
   const row = [];
   requestedFields.asArray().forEach((field): void => {
     switch (field.getId()) {
@@ -174,6 +181,9 @@ function buildRow(requestedFields: GoogleAppsScript.Data_Studio.Fields, dom: str
         break;
       case 'domain':
         row.push(dom);
+        break;
+      case 'device':
+        row.push(device);
         break;
       case 'search_term':
         row.push(searchTerm);
@@ -220,6 +230,8 @@ function getData(request): object {
   }
 
   const params = configurator.getDefaultParams(EndpointType.WebDesktopData, country);
+  const hasMobile = !!configurator.getDefaultParams(EndpointType.WebMobileData, country);
+
   params['start_date'] = startDate;
   params['end_date'] = endDate;
   params['limit'] = limit;
@@ -232,6 +244,9 @@ function getData(request): object {
   domains.forEach((domain): void => {
     urls.push(buildUrl(`https://api.similarweb.com/v1/website/${domain}/traffic-sources/organic-search`, params));
     urls.push(buildUrl(`https://api.similarweb.com/v1/website/${domain}/traffic-sources/paid-search`, params));
+    if (hasMobile) {
+      urls.push(buildUrl(`https://api.similarweb.com/v1/website/${domain}/mobile-traffic-sources/mobile-search`, params));
+    }
   });
 
   const responses = retrieveOrGetAll(urls);
@@ -245,16 +260,34 @@ function getData(request): object {
     const visitsPaid = dataPaid.visits || 0;
     const totVisits = visitsOrganic + visitsPaid;
 
+    let organicLongTailShare = 1;
+    let paidLongTailShare = 1;
     if (dataOrganic && dataOrganic.search) {
       dataOrganic.search.forEach((srch): void => {
-        tabularData.push({ values: buildRow(requestedFields, domain, srch.search_term, 'Organic', totVisits * srch.share) });
+        tabularData.push({ values: buildRow(requestedFields, domain, srch.search_term, 'Desktop', 'Organic', totVisits * srch.share) });
+        organicLongTailShare -= srch.share;
       });
+      tabularData.push({ values: buildRow(requestedFields, domain, '*LONG TAIL*', 'Desktop', 'Organic', totVisits * organicLongTailShare) });
     }
 
     if (dataPaid && dataPaid.search) {
       dataPaid.search.forEach((srch): void => {
-        tabularData.push({ values: buildRow(requestedFields, domain, srch.search_term, 'Paid', totVisits * srch.share) });
+        tabularData.push({ values: buildRow(requestedFields, domain, srch.search_term, 'Desktop', 'Paid', totVisits * srch.share) });
+        paidLongTailShare -= srch.share;
       });
+      tabularData.push({ values: buildRow(requestedFields, domain, '*LONG TAIL*', 'Desktop', 'Paid', totVisits * paidLongTailShare) });
+    }
+
+    if (hasMobile) {
+      let mobileLongTailShare = 1;
+      const dataMobile = responses[buildUrl(`https://api.similarweb.com/v1/website/${domain}/mobile-traffic-sources/mobile-search`, params)] as KeywordsReply;
+      if (dataMobile && dataMobile.search) {
+        dataMobile.search.forEach((srch): void => {
+          tabularData.push({ values: buildRow(requestedFields, domain, srch.search_term, 'Mobile Web', 'Organic & Paid', dataMobile.visits * srch.share) });
+          mobileLongTailShare -= srch.share;
+        });
+        tabularData.push({ values: buildRow(requestedFields, domain, '*LONG TAIL*', 'Mobile Web', 'Organic & Paid', totVisits * mobileLongTailShare) });
+      }
     }
   });
 

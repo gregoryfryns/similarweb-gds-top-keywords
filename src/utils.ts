@@ -360,7 +360,7 @@ export function retrieveOrGet(url: string, params: object = {}): SimilarwebApiRe
  * @param retries Number of times the HTTP GET call will be retried if unsuccessful
  * @return Object mapping the urls with the returned data (or null if no data could be retrieved for the url)
  */
-export function httpGetAll(urls: string[], batchSize: number = 10, retries: number = 3): UrlDataMap {
+export function httpGetAll(urls: string[], batchSize: number = 4, retries: number = 3): UrlDataMap {
   console.log('httpGetAll: calling API for ', urls.length, 'urls - ', retries, ' retries left');
   const cache = ChunkyCache.getInstance();
   const waitlist = urls.slice(0); // clone array
@@ -559,7 +559,7 @@ export class ApiConfiguration {
 
     return params;
   }
-  
+
   public getInterval(endpointType: EndpointType): { 'startDate': string; 'endDate': string } {
     const capData = ApiConfiguration.capData;
     if (!capData.hasOwnProperty(endpointType)) {
@@ -575,5 +575,4 @@ export class ApiConfiguration {
       'endDate': capData[endpointType].snapshot_interval.end_date
     };
   }
-}
 }
