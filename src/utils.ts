@@ -250,7 +250,7 @@ class ChunkyCache {
       });
     }
     catch (e) {
-      console.error('ChunkyCache: Could not get chunks data - ', e);
+      console.warn('ChunkyCache: Could not get chunks data - ', e);
     }
 
     return result;
@@ -300,7 +300,11 @@ export function httpGet(url: string, params: object = {}, retries: number = 3): 
       data = httpGet(url, params, retries - 1);
     }
     else {
-      console.error('Could not get data from API - ', e);
+      DataStudioApp.createCommunityConnector()
+        .newUserError()
+        .setDebugText(`httpGet: Could not retrieve the data for url: ${url} - error: ${e}`)
+        .setText(`An error has occurred when contacting the Similarweb API, please contact the developers to fix the problem.`)
+        .throwException();
     }
   }
   console.log('httpGet: Retrieved data successfully');
@@ -309,9 +313,12 @@ export function httpGet(url: string, params: object = {}, retries: number = 3): 
     data = JSON.parse(response.getContentText());
   }
   catch (e) {
-    console.error('Could not parse JSON reply. Exception details: ' + e);
+    DataStudioApp.createCommunityConnector()
+      .newUserError()
+      .setDebugText(`httpGet: error parsing the JSON for url: ${url} - error: ${e}`)
+      .setText(`An error has occurred when contacting the Similarweb API, please contact the developers to fix the problem.`)
+      .throwException();
   }
-
   return data;
 }
 
@@ -426,8 +433,11 @@ export function httpGetAll(urls: string[], batchSize: number = 10, retries: numb
       });
     }
     else {
-      missed.forEach((url: string): void => result[url] = null);
-    }
+      DataStudioApp.createCommunityConnector()
+        .newUserError()
+        .setDebugText(`httpGet: Could not retrieve the data for ${missed.length} urls: ${JSON.stringify(missed).slice(0, 1000)}`)
+        .setText(`An error has occurred when contacting the Similarweb API, please contact the developers to fix the problem.`)
+        .throwException();    }
   }
 
   return result;
@@ -459,6 +469,28 @@ export function retrieveOrGetAll(urls: string[], batchSize: number = 10): UrlDat
   }
 
   return result;
+}
+
+export class Set {
+  private set = {};
+
+  public constructor(values: string[] = []) {
+    values.forEach((value): void => { this.set[value] = true; });
+  }
+
+  public add(value: string | string[]): Set {
+    if (value instanceof Array) {
+      value.forEach((val): void => {this.set[val]; });
+    }
+    else {
+      this.set[value] = true;
+    }
+    return this;
+  }
+
+  public getValues(): string[] {
+    return Object.keys(this.set);
+  }
 }
 
 export enum EndpointType {
@@ -527,7 +559,7 @@ export class ApiConfiguration {
 
     return params;
   }
-
+  
   public getInterval(endpointType: EndpointType): { 'startDate': string; 'endDate': string } {
     const capData = ApiConfiguration.capData;
     if (!capData.hasOwnProperty(endpointType)) {
@@ -543,4 +575,5 @@ export class ApiConfiguration {
       'endDate': capData[endpointType].snapshot_interval.end_date
     };
   }
+}
 }
